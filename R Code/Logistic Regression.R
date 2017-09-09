@@ -1,5 +1,5 @@
 library(Amelia)
-library(brglm)
+library(logistf)
 
 setwd("~/Documents/GitHub/Parable")
 dealdata<-readRDS("./RDS/dealdata.rds")
@@ -23,6 +23,8 @@ logistic<-truedata[,c(3:23,28)]
 logistic$bought[logistic$bought==T]<-1
 logistic$bought[logistic$bought==F]<-0
 
+colnames(logistic)<-c('Price','DebtPS','Debt2Eq','CurrentR','FCFPS','PE','PS','PB','EV2EBITDA','PM','EBITDA','Cash','MinorityInt','MkCap','Leverage','RevGrowth','ROIC','CFO','CAPEX','DilEPS','Dates','Bought')
+
 traindata<-logistic[logistic$Dates<as.Date('2011-01-01','%Y-%m-%d'),]
 testdata<-logistic[logistic$Dates>=as.Date('2011-01-01','%Y-%m-%d'),]
 
@@ -31,14 +33,17 @@ testdata<-testdata[,c(1:20,22)]
 
 for(i in names(traindata))
 {
-  traindata[[i]][is.na(traindata[[i]])]<-mean(traindata[[i]],na.rm = T)
+  traindata[[i]][!is.finite(traindata[[i]])]<-mean(traindata[[i]][is.finite(traindata[[i]])])
 }
-for(i in names(traindata))
+for(i in names(testdata))
 {
-  traindata[[i]][is.na(testdata[[i]])]<-mean(testdata[[i]],na.rm = T)
+  testdata[[i]][!is.finite(testdata[[i]])]<-mean(testdata[[i]][is.finite(traindata[[i]])])
 }
 
-trainset <- data.matrix(traindata[,1:20])
-trainoutcomes<-data.matrix(traindata[,21])
+ y<-traindata[traindata$MkCap<0,]
 
-model<-brglmFit(x=trainset,y=trainoutcomes,family=binomial)
+
+#missmap(traindata, main = "Missing values vs observed")
+model<-logistf(
+  formula = Bought~Price+DebtPS+Debt2Eq+CurrentR+FCFPS+PE+PS+PB+EV2EBITDA+PM+EBITDA
+  ,data=traindata)
