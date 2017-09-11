@@ -1,5 +1,7 @@
 library(Amelia)
 library(logistf)
+library(corrplot)
+library(pscl)
 
 setwd("~/Documents/GitHub/Parable")
 dealdata<-readRDS("./RDS/dealdata.rds")
@@ -37,13 +39,31 @@ for(i in names(traindata))
 }
 for(i in names(testdata))
 {
-  testdata[[i]][!is.finite(testdata[[i]])]<-mean(testdata[[i]][is.finite(traindata[[i]])])
+  testdata[[i]][!is.finite(testdata[[i]])]<-mean(testdata[[i]][is.finite(testdata[[i]])])
 }
-
- y<-traindata[traindata$MkCap<0,]
-
+testdata<-testdata[,c(1:18,20)]
 
 #missmap(traindata, main = "Missing values vs observed")
 model<-logistf(
-  formula = Bought~Price+DebtPS+Debt2Eq+CurrentR+FCFPS+PE+PS+PB+EV2EBITDA+PM+EBITDA
+  formula = Bought~Price+DebtPS+Debt2Eq+CurrentR+FCFPS+PE+PS+PB+EV2EBITDA+PM+EBITDA+Cash+MinorityInt+MkCap+Leverage+RevGrowth+ROIC+CFO+DilEPS
   ,data=traindata)
+
+modellogit<-glm(
+  formula = Bought~Price+DebtPS+Debt2Eq+CurrentR+FCFPS+PE+PS+PB+EV2EBITDA+PM+EBITDA+Cash+MinorityInt+MkCap+Leverage+RevGrowth+ROIC+CFO+DilEPS
+  ,data=traindata, family=binomial)
+
+corrplot(cor(traindata), type = 'lower',method='ellipse')
+
+pR2(modellogit)
+
+#-----------------------------------------------------------------------
+
+backtest<-predict(modellogit,newdata=testdata,type='response')
+backtest<-round(backtest)
+bought<-logistic[logistic$Dates>=as.Date('2011-01-01','%Y-%m-%d'),22]
+
+betas <- coef(model)
+X<-model.matrix(model, data=testdata) 
+backtest<-round(1 / (1 + exp(-X %*% betas)))
+
+compare<-cbind(bought,backtest)
