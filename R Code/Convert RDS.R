@@ -1,7 +1,7 @@
 library(readxl)
 library(dplyr)
 
-setwd("~/Documents/GitHub/Parable/Bloomberg Raw")
+setwd("~/Documents/GitHub/Parable/Bloomberg/Bloomberg Raw New")
 file.list <- list.files(pattern='*.xlsx')
 dflist <-lapply(file.list, read_excel)
 
