@@ -88,3 +88,11 @@ ROBOTSTXT_OBEY = True
 #HTTPCACHE_DIR = 'httpcache'
 #HTTPCACHE_IGNORE_HTTP_CODES = []
 #HTTPCACHE_STORAGE = 'scrapy.extensions.httpcache.FilesystemCacheStorage'
+
+#mongodb connection
+ITEM_PIPELINES = ['stack.pipelines.MongoDBPipeline', ]
+
+MONGODB_SERVER = "localhost"
+MONGODB_PORT = 27017
+MONGODB_DB = "PythonNLP"
+MONGODB_COLLECTION = "ReutersHeadlines"
