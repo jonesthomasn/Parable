@@ -14,6 +14,9 @@ setwd("~/Documents/GitHub/Parable")
 #-------------------------------------------------------------------------------
 dealdata<-readRDS("./RDS/dealdata.rds")
 factordata<-readRDS("./RDS/factordatamerged1.rds")
+factordata2<-readRDS("./RDS/newRawData.rds")
+
+factordata<-rbind(factordata,factordata2)
 
 colnames(dealdata)[1]<-'Ticker'
 dealdata$modTicker<-gsub('\\s+.*','',dealdata$Ticker)
@@ -54,12 +57,14 @@ colnames(truedata)<-c('ModTicker','Full Ticker','Dates','Price','DebtPS','Debt2E
                       'Full Ticker','Announced Data','Sector','DateDiff','Bought')
 
 logistic<-logistic[ , !(names(logistic) %in% c('CEOGender','DoInc','ICBSubSecNo','BICSL1Code','BICSL1Name','CAPEX'))]
+logistic$Price<-as.numeric(logistic$Price)
 
 traindata<-logistic[logistic$Dates<as.Date('2011-01-01','%Y-%m-%d'),]
-testdata<-logistic[logistic$Dates>=as.Date('2011-01-01','%Y-%m-%d'),]
-predictdata<-logistic[logistic$Dates>as.Date('2017-03-30','%Y-%m-%d'),]
+testdata<-logistic[logistic$Dates>=as.Date('2011-01-01','%Y-%m-%d') & logistic$Dates<=as.Date('2016-06-30','%Y-%m-%d'),]
+predictdata<-logistic[logistic$Dates>as.Date('2016-09-30','%Y-%m-%d'),]
 
-rawpredict<-truedata[truedata$Dates>as.Date('2017-03-30','%Y-%m-%d'),]
+
+rawpredict<-truedata[truedata$Dates>as.Date('2016-09-30','%Y-%m-%d'),]
 
 traindata<-traindata[,!(names(traindata) %in% c('Dates'))]
 testdata<-testdata[,!(names(testdata) %in% c('Dates'))]
@@ -93,9 +98,11 @@ rawpredict<-rawpredict[rawpredict$MkCap <1e10,]
 #testdata<-testdata[(testdata$ICBSecNo %in% c(5550,6570,580,9530,3570,8990,6530,8630,5750,5330)),]
 
 
-saveRDS(logistic,'./RDS/regressiondata.rds')
-saveRDS(testdata,'./RDS/testingdata.rds')
-saveRDS(traindata,'./RDS/trainingdata.rds')
+saveRDS(logistic,'./RDS2/regressiondata.rds')
+saveRDS(testdata,'./RDS2/testingdata.rds')
+saveRDS(traindata,'./RDS2/trainingdata.rds')
+saveRDS(rawpredict,'./RDS2/rawpredictdata.rds')
+saveRDS(predictdata,'./RDS2/predictdata.rds')
 
 #------------------------------------------------------------------------------------------
 logistic<-readRDS('./RDS/regressiondata.rds')
@@ -123,6 +130,30 @@ modellogit3<-ada(
 
 check<-data.frame(round(fitted(modellogit)),traindataOver$Bought)
 #-----------------------------------------------------------------------
+library(randomForest)
+industries<-unique(traindata$ICBSecNo)
+rlist<-readRDS('./RDS/indovrforest.rds')
+
+i<-1
+rlist<-list()
+for(industry in industries)
+{
+  rlist[[i]]<-randomForest(Bought~.,data=traindata[traindata$ICBSecNo==industry,],ntree=1000,mtry=9,importance=TRUE)
+  i<-i+1
+  print(i)
+}
+
+i<-1
+predts<-list()
+
+for(industry in industries)
+{
+  predts[[i]]<-predict(rlist[[i]],newdata=testdata[testdata$ICBSecNo==industry,],type='response')
+  i<-i+1
+  print(i)
+}
+
+#---------------------------------------------------------------------
 
 backtest<-predict(modellogit,newdata=testdata,type='response')
 backtest<-round(backtest)
