@@ -16,7 +16,9 @@ dealdata<-readRDS("./RDS/dealdata.rds")
 factordata<-readRDS("./RDS/factordatamerged1.rds")
 factordata2<-readRDS("./RDS/newRawData.rds")
 
+colnames(factordata2)[4] <- colnames(factordata)[5]
 factordata<-rbind(factordata,factordata2)
+
 
 colnames(dealdata)[1]<-'Ticker'
 dealdata$modTicker<-gsub('\\s+.*','',dealdata$Ticker)
@@ -60,11 +62,9 @@ logistic<-logistic[ , !(names(logistic) %in% c('CEOGender','DoInc','ICBSubSecNo'
 logistic$Price<-as.numeric(logistic$Price)
 
 traindata<-logistic[logistic$Dates<as.Date('2011-01-01','%Y-%m-%d'),]
-testdata<-logistic[logistic$Dates>=as.Date('2011-01-01','%Y-%m-%d') & logistic$Dates<=as.Date('2016-06-30','%Y-%m-%d'),]
-predictdata<-logistic[logistic$Dates>as.Date('2016-09-30','%Y-%m-%d'),]
-
-
-rawpredict<-truedata[truedata$Dates>as.Date('2016-09-30','%Y-%m-%d'),]
+testdata<-logistic[logistic$Dates>=as.Date('2011-01-01','%Y-%m-%d') & logistic$Dates<as.Date('2016-09-30','%Y-%m-%d'),]
+predictdata<-logistic[logistic$Dates>=as.Date('2016-09-30','%Y-%m-%d'),]
+rawpredict<-truedata[truedata$Dates>=as.Date('2016-09-30','%Y-%m-%d'),]
 
 traindata<-traindata[,!(names(traindata) %in% c('Dates'))]
 testdata<-testdata[,!(names(testdata) %in% c('Dates'))]
@@ -105,9 +105,11 @@ saveRDS(rawpredict,'./RDS2/rawpredictdata.rds')
 saveRDS(predictdata,'./RDS2/predictdata.rds')
 
 #------------------------------------------------------------------------------------------
-logistic<-readRDS('./RDS/regressiondata.rds')
-traindata<-readRDS("./RDS/trainingdata.rds")
-testdata<-readRDS("./RDS/testingdata.rds")
+logistic<-readRDS('./RDS2/regressiondata.rds')
+traindata<-readRDS("./RDS2/trainingdata.rds")
+testdata<-readRDS("./RDS2/testingdata.rds")
+rawpredict<-readRDS("./RDS2/rawpredictdata.rds")
+predictdata<-readRDS("./RDS2/predictdata.rds")
 
 traindata$Bought<-factor(traindata$Bought)
 testdata$Bought<-factor(testdata$Bought)
@@ -122,7 +124,7 @@ model<-logistf(
 
 modellogit<-glm(
   formula = Bought~.
-  ,data=traindataOver, family=binomial(logit))
+  ,data=traindata, family=binomial(logit))
 
 modellogit3<-ada(
   formula = Bought~.
@@ -133,6 +135,8 @@ check<-data.frame(round(fitted(modellogit)),traindataOver$Bought)
 library(randomForest)
 industries<-unique(traindata$ICBSecNo)
 rlist<-readRDS('./RDS/indovrforest.rds')
+
+rmodel<-randomForest(Bought~., data=traindata,classwt=c(1,20))
 
 i<-1
 rlist<-list()
@@ -163,14 +167,38 @@ X<-model.matrix(model, data=traindata)
 backtest<-round(1 / (1 + exp(-X %*% betas)))
 
 compare<-cbind(bought,training)
+#-----------------------------------------------------------------------
+library(isofor)
+isomodel<-iForest( X=traindata,nt=1000,phi=128)
+fitpreds = predict(isomodel,newdata=traindata,type="response")
+fitpred = prediction(fitpreds,testdata$Bought)
+
+#saveRDS(fitpreds,'./RDS2/isoForTrain.rds')
+#saveRDS(fitpreds,'./RDS2/isoForTest.rds')
+
+fitperf = performance(fitpred,"tpr","fpr")
+repperf = performance(fitpred,"prec","rec")
+auc.tmp <- performance(fitpred,"auc"); 
+print(as.numeric(auc.tmp@y.values)*100)
+f <- approxfun(data.frame(repperf@x.values , repperf@y.values) ) 
+auc <- integrate(f, 0, 1)$value
+print(auc-0.01815110344)
+
+
+#train 0.0138297431, test 
+plot(fitperf,col="green",lwd=2,main="ROC Curve for Logistic Regression")
+abline(a=0,b=1,lwd=2,lty=2,col="gray")
+plot(repperf,col="blue",lwd=2,main="Precision-Recall Curve for Logistic REg")
 
 #-----------------------------------------------------------------------
 library(ROCR)
-fitpreds = predict(modellogit,newdata=predictdata,type="response")
+fitpreds = predict(isomodel,newdata=predictdata,type="response")
 
-rawpredict$predicted<-(fitpreds>0.7)
-ouput<-data.frame(rawpredict$`Full Ticker`,rawpredict$predicted)
-output<-ouput[!duplicated(ouput), ]
+rawpredict$predicted<-round(fitpreds)
+ouput<-data.frame(rawpredict$`Full Ticker`,rawpredict$Dates,rawpredict$predicted)
+ouput<-ouput[ouput$rawpredict.predicted==1,]
+tickers<-ouput[!duplicated(ouput$rawpredict..Full.Ticker.), ]
+finaltickers<-tickers[tickers$rawpredict.Dates>as.Date('2017-06-30','%Y-%m-%d'),]
 
 fitpred = prediction(fitpreds,testdata$Bought)
 fitperf = performance(fitpred,"tpr","fpr")
